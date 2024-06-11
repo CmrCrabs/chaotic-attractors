@@ -38,7 +38,7 @@ fn main() -> Result {
 
     let (device, queue) = pollster::block_on(adapter.request_device(
         &wgpu::DeviceDescriptor {
-            features: wgpu::Features::empty(),
+            features: wgpu::Features::VERTEX_WRITABLE_STORAGE,
             limits: wgpu::Limits::default(),
             label: None,
         },
@@ -128,22 +128,42 @@ fn main() -> Result {
         label: None,
     });
 
+    // VERTICES
     let mut vertices: Vec<Vec4> = vec![];
     let mut rng = rand::thread_rng();
-    for _ in 0..500 {
+    for _ in 0..100000 {
         vertices.push( Vec4::new(
-            rng.gen_range(0.0..1.0),
-            rng.gen_range(0.0..1.0),
-            rng.gen_range(0.0..1.0),
+            rng.gen_range(-0.0001..0.0001),
+            rng.gen_range(-0.0001..0.0001),
+            rng.gen_range(-0.0001..0.0001),
             1.0,
         ));
     }
 
-    println!("{:?}", vertices);
-
-    let vtx_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    let stg_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         contents: cast_slice(&vertices),
-        usage: wgpu::BufferUsages::VERTEX,
+        usage: wgpu::BufferUsages::STORAGE,
+        label: None,
+    });
+    let stg_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        }],
+        label: None,
+    });
+    let stg_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout: &stg_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: stg_buf.as_entire_binding(),
+        }],
         label: None,
     });
 
@@ -174,6 +194,7 @@ fn main() -> Result {
         bind_group_layouts: &[
             &camera_bind_group_layout,
             &time_bind_group_layout,
+            &stg_bind_group_layout,
         ],
         push_constant_ranges: &[],
         label: None,
@@ -184,11 +205,7 @@ fn main() -> Result {
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: "main_vs",
-            buffers: &[wgpu::VertexBufferLayout {
-                array_stride: mem::size_of::<Vec4>() as _,
-                step_mode: wgpu::VertexStepMode::Instance,
-                attributes: &wgpu::vertex_attr_array![0 => Float32x4],
-            }],
+            buffers: &[],
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
@@ -262,7 +279,7 @@ fn main() -> Result {
                 render_pass.set_pipeline(&pipeline);
                 render_pass.set_bind_group(0, &camera_bind_group, &[]);
                 render_pass.set_bind_group(1, &time_bind_group, &[]);
-                render_pass.set_vertex_buffer(0, vtx_buf.slice(..));
+                render_pass.set_bind_group(2, &stg_bind_group, &[]);
 
                 render_pass.draw(0..vertices.len() as u32, 0..1);
                 drop(render_pass);

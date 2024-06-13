@@ -1,0 +1,11 @@
+implement orbit camera
+zoom
+implement gui to adjust parameters
+implement options for different attractors
+particle trails
+better color effects
+
+TODO:
+
+DIGITISE THOUGHTS
+REDESIGN UI

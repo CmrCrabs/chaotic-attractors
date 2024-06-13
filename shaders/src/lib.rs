@@ -1,11 +1,20 @@
 #![no_std]
 
-use spirv_std::glam::{Vec4,Vec2, Mat4};
+
+use spirv_std::glam::{Vec4,Vec2,Vec4Swizzles, Mat4};
 use spirv_std::spirv;
 
-const A: f32 = 1.89;
 const DT: f32 = 0.01;
 const POINT_SIZE: f32 = 2.0;
+
+// Halvorsen
+const A: f32 = 1.89;
+
+// Lorenz
+const S: f32 = 10.0;
+const P: f32 = 28.0;
+const B: f32 = 8.0 / 3.0;
+
 
 #[spirv(vertex)]
 pub fn main_vs(
@@ -20,12 +29,23 @@ pub fn main_vs(
     out_dz: &mut f32,
 ) {
     let vi = vertex_index as usize;
+
+    //Halvorsen
     let mut dx = -A * points[vi].x - 4.0 * points[vi].y - 4.0 * points[vi].z - (points[vi].y * points[vi].y);
-    dx *=DT;
     let mut dy = -A * points[vi].y - 4.0 * points[vi].z - 4.0 * points[vi].x - (points[vi].z * points[vi].z);
-    dy *=DT;
     let mut dz = -A * points[vi].z - 4.0 * points[vi].x - 4.0 * points[vi].y - (points[vi].x * points[vi].x);
+
+    //swizzle it
+    
+    // Lorenz
+    //let mut dx = S * (- points[vi].x + points[vi].y);
+    //let mut dy = -points[vi].x * points[vi].z + points[vi].x * P - points[vi].y; 
+    //let mut dz = points[vi].x * points[vi].y - B * points[vi].z;
+
+    dx *=DT;
+    dy *=DT;
     dz *=DT;
+
     let dpos = Vec4::new(points[vi].x + dx, points[vi].y + dy, points[vi].z + dz, 1.0);
     points[vi] = dpos;
 
@@ -45,11 +65,9 @@ pub fn main_fs(
     output: &mut Vec4,
 ) {
     *output = Vec4::new(
-        1.0 / (1.0 - dx),
-        1.0 / (1.0 - dy),
-        1.0 / (1.0 - dz),
-        1.0,
+        1.0 / (2.0 - dx),
+        1.0 / (2.0 - dy),
+        1.0 / (2.0 - dz),
+        0.7,
     );
 }
-
-

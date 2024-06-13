@@ -1,5 +1,7 @@
+use std::f32::consts::PI;
 use std::time::Instant;
 use rand::prelude::*;
+use winit::dpi::PhysicalPosition;
 use std::{mem, slice};
 use winit::keyboard::KeyCode;
 use winit::{event::*, event_loop::EventLoop, window::WindowBuilder};
@@ -77,10 +79,18 @@ fn main() -> Result {
         label: None,
     });
 
-    // CAMERA
+    // CAMERA SETUP
+    let mut pitch: f32 = -2.402;
+    let mut yaw: f32 = -0.4147;
+    let mut zoom: f32 = 40.0;
+
     let mut camera = Camera {
-        eye: (0.0, 1.0, 30.0).into(),
-        target: (0.0, 0.0, 0.0).into(),
+        eye: Vec3::new(
+            zoom * yaw.cos() * pitch.sin(),
+            zoom * yaw.sin(),
+            zoom * yaw.cos() * pitch.cos(),
+        ),
+        target: Vec3::new(0.0,0.0,0.0),
         up: Vec3::new(0.0, 1.0, 0.0),
         aspect: window.inner_size().width as f32 / window.inner_size().height as f32,
         fovy: 45.0,
@@ -88,17 +98,21 @@ fn main() -> Result {
         zfar: 100.0,
     };
 
-    // CAMERA UNIFORM
-    let view = Mat4::look_at_rh(camera.eye, camera.target, camera.up);
-    let proj = Mat4::perspective_rh(
+    let mut view = Mat4::look_at_rh(
+        camera.eye, 
+        camera.target, 
+        camera.up
+    );
+    let proj = Mat4::perspective_infinite_rh(
         camera.fovy.to_radians(),
         camera.aspect,
         camera.znear,
-        camera.zfar,
     );
-    let camera_uniform = proj * view;
 
-    let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    // CAMERA UNIFORM
+    let mut camera_uniform = proj * view;
+
+    let mut camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         contents: cast_slice(&[camera_uniform]),
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         label: None,
@@ -119,7 +133,7 @@ fn main() -> Result {
         label: None,
     });
 
-    let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+    let mut camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         layout: &camera_bind_group_layout,
         entries: &[wgpu::BindGroupEntry {
             binding: 0,
@@ -131,11 +145,13 @@ fn main() -> Result {
     // VERTICES
     let mut vertices: Vec<Vec4> = vec![];
     let mut rng = rand::thread_rng();
+    let res = 0.0001;
+    let offset = 0.0;
     for _ in 0..100000 {
         vertices.push( Vec4::new(
-            rng.gen_range(-0.0001..0.0001),
-            rng.gen_range(-0.0001..0.0001),
-            rng.gen_range(-0.0001..0.0001),
+            rng.gen_range(-res..res) + offset,
+            rng.gen_range(-res..res) + offset,
+            rng.gen_range(-res..res) + offset,
             1.0,
         ));
     }
@@ -237,10 +253,81 @@ fn main() -> Result {
         Event::WindowEvent { event, .. } => match event {
             WindowEvent::CloseRequested => elwt.exit(),
 
-            WindowEvent::KeyboardInput { event, .. } => {
-                if event.physical_key == KeyCode::Escape {
-                    elwt.exit();
-                };
+            WindowEvent::KeyboardInput { event, .. } => match event.physical_key {
+                    winit::keyboard::PhysicalKey::Code(KeyCode::Escape) => elwt.exit(),
+                    _ => {},
+            },
+
+            WindowEvent::MouseWheel { delta, .. } => {
+                match delta {
+                    MouseScrollDelta::LineDelta( _ ,y) => {
+                        zoom -= y;
+                    }
+                    MouseScrollDelta::PixelDelta(PhysicalPosition { y , .. }) => {
+                        zoom -= y as f32;
+                    }
+                }
+                camera.eye = Vec3::new(
+                    zoom * yaw.cos() * pitch.sin(),
+                    zoom * yaw.sin(),
+                    zoom * yaw.cos() * pitch.cos(),
+                );
+                view = Mat4::look_at_rh(
+                    camera.eye, 
+                    camera.target, 
+                    camera.up
+                );
+                camera_uniform = proj * view;
+
+                camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    contents: cast_slice(&[camera_uniform]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    label: None,
+                });
+
+                camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &camera_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: camera_buffer.as_entire_binding(),
+                    }],
+                    label: None,
+                });
+            },
+
+            WindowEvent::CursorMoved { position, .. } => {
+                match position {
+                    PhysicalPosition { x, y } => {
+                        yaw = (PI / window.inner_size().height as f32) * (y  as f32 - (window.inner_size().height as f32 / 2.0));
+                        pitch = ((2.0 * PI) / window.inner_size().width as f32) * (x  as f32 - (window.inner_size().width as f32 / 2.0));
+                    }
+                }
+                camera.eye = Vec3::new(
+                    zoom * yaw.cos() * pitch.sin(),
+                    zoom * yaw.sin(),
+                    zoom * yaw.cos() * pitch.cos(),
+                );
+                view = Mat4::look_at_rh(
+                    camera.eye, 
+                    camera.target, 
+                    camera.up
+                );
+                camera_uniform = proj * view;
+
+                camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    contents: cast_slice(&[camera_uniform]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    label: None,
+                });
+
+                camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &camera_bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: camera_buffer.as_entire_binding(),
+                    }],
+                    label: None,
+                });
             },
 
             WindowEvent::RedrawRequested => {

@@ -1,4 +1,5 @@
 use std::f32::consts::PI;
+use std::mem::size_of;
 use std::time::Instant;
 use rand::prelude::*;
 use winit::dpi::PhysicalPosition;
@@ -7,6 +8,7 @@ use winit::keyboard::KeyCode;
 use winit::{event::*, event_loop::EventLoop, window::WindowBuilder};
 use wgpu::util::DeviceExt;
 use glam::{Vec3, Vec4, Mat4};
+use shared::Time;
 use log::LevelFilter;
 
 type Result<T = (), E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
@@ -27,7 +29,7 @@ fn main() -> Result {
     env_logger::builder().filter_level(LevelFilter::Info).init();
 
     let event_loop = EventLoop::new()?;
-    let window = WindowBuilder::new().with_title("Fur Shader").build(&event_loop)?;
+    let window = WindowBuilder::new().with_title("Chaotic Attractors").build(&event_loop)?;
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
     let surface = unsafe { instance.create_surface(&window)? };
@@ -50,9 +52,13 @@ fn main() -> Result {
 
     // TIME
     let start_time = Instant::now();
+    let mut time = Time {
+        elapsed: 0.0,
+        frametime: 0.0,
+    };
 
     let time_buf = device.create_buffer(&wgpu::BufferDescriptor {
-        size: 4,
+        size: size_of::<Time>() as u64,
         mapped_at_creation: false,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         label: None,
@@ -248,6 +254,7 @@ fn main() -> Result {
         label: None,
     });
 
+    let mut cursor_down: bool = false;
     // EVENT LOOP
     event_loop.run(move |event, elwt| match event {
         Event::WindowEvent { event, .. } => match event {
@@ -256,6 +263,12 @@ fn main() -> Result {
             WindowEvent::KeyboardInput { event, .. } => match event.physical_key {
                     winit::keyboard::PhysicalKey::Code(KeyCode::Escape) => elwt.exit(),
                     _ => {},
+            },
+
+            WindowEvent::MouseInput { state, button, .. } => match button {
+                MouseButton::Left => cursor_down = state.is_pressed(),
+                _ => (),
+
             },
 
             WindowEvent::MouseWheel { delta, .. } => {
@@ -295,10 +308,10 @@ fn main() -> Result {
                 });
             },
 
-            WindowEvent::CursorMoved { position, .. } => {
+            WindowEvent::CursorMoved { position, .. } => if cursor_down {
                 match position {
                     PhysicalPosition { x, y } => {
-                        yaw = (PI / window.inner_size().height as f32) * (y  as f32 - (window.inner_size().height as f32 / 2.0));
+                        yaw = (PI / window.inner_size().height as f32) * (y  as f32 - (window.inner_size().height as f32 / 2.0) + 0.01);
                         pitch = ((2.0 * PI) / window.inner_size().width as f32) * (x  as f32 - (window.inner_size().width as f32 / 2.0));
                     }
                 }
@@ -331,8 +344,11 @@ fn main() -> Result {
             },
 
             WindowEvent::RedrawRequested => {
-                let duration = start_time.elapsed();
-                queue.write_buffer(&time_buf, 0, cast_slice(&[duration.as_secs_f32()]));
+                let duration = start_time.elapsed().as_secs_f32();
+                time.frametime = duration - time.elapsed;
+                time.elapsed = duration;
+
+                queue.write_buffer(&time_buf, 0, cast_slice(&[&time]));
                 let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
                 let surface = surface.get_current_texture().unwrap();

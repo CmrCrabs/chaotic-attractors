@@ -13,6 +13,7 @@ log = "0.4"
 glam = "0.24"
 env_logger = "0.10"
 rand = "0.8.5"
+shared = { path = "./shared" }
 
 [build-dependencies]
 spirv-builder = { version = "0.9", default-features = false, features = ["use-installed-tools"]}

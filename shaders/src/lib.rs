@@ -23,7 +23,7 @@ pub fn main_vs(
 ) {
     let vi = vertex_index as usize;
 
-    let mut d = (-A * points[vi].xyz() - 4.0 * points[vi].yzx() - 4.0 * points[vi].zxy() - (points[vi].yzx() * points[vi].yzx())).extend(1.0);
+    let mut d = (-A * points[vi].xyz() - 4.0 * points[vi].yzx() - 4.0 * points[vi].zxy() - (points[vi].yzx() * points[vi].yzx())).extend(0.0);
     d *= time.frametime;
 
     let dpos = points[vi] + d;
@@ -31,6 +31,7 @@ pub fn main_vs(
 
     *out_pos = *camera_view_proj * dpos;
     *out_point_size = POINT_SIZE;
+    d.w = 0.0;
     *out_d = d;
 }
 

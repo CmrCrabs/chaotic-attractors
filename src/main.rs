@@ -348,7 +348,7 @@ fn main() -> Result {
                 time.frametime = duration - time.elapsed;
                 time.elapsed = duration;
 
-                queue.write_buffer(&time_buf, 0, cast_slice(&[&time]));
+                queue.write_buffer(&time_buf, 0, cast_slice(&[time]));
                 let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
                 let surface = surface.get_current_texture().unwrap();
